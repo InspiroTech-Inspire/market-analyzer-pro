@@ -1,0 +1,57 @@
+version: '3.8'
+
+services:
+  db:
+    image: mysql:8.0
+    container_name: market-analyzer-db
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword
+      MYSQL_DATABASE: market_analyzer
+      MYSQL_USER: appuser
+      MYSQL_PASSWORD: apppassword
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  backend:
+    build:
+      context: .
+      dockerfile: apps/backend/Dockerfile
+    container_name: market-analyzer-backend
+    environment:
+      DATABASE_URL: mysql://appuser:apppassword@db:3306/market_analyzer
+      PORT: 3001
+      CORS_ORIGIN: http://localhost:5173
+      YAHOO_FINANCE_API_KEY: ${YAHOO_FINANCE_API_KEY}
+    ports:
+      - "3001:3001"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: .
+      dockerfile: apps/frontend/Dockerfile
+      args:
+        VITE_API_URL: http://localhost:3001
+    container_name: market-analyzer-frontend
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+
+networks:
+  default:
+    name: market-analyzer-network
+    driver: bridge
